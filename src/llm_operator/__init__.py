@@ -1,1 +1,2 @@
-from .softmax import softmax, softmaxBackward, test
+from .softmax import softmax, softmaxBackward, test, Softmax_cache
+from .layer_norm import layer_norm, layer_norm_backward, Layer_norm_cache
