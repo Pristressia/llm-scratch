@@ -8,6 +8,8 @@
 
     > $ uv init project_name
 
+    > $ uv pip install -e .
+
 3.  create src folder under root directory
 4.  create library name "llm_architect" under /src folder
 5.  add file "\_\_init\_\_.py" in "llm_architect" directory

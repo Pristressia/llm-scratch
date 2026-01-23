@@ -20,3 +20,7 @@ def softmaxBackward(
     PtimesGrad = P * gradientOfOutput
     sum_PtimesGrad = np.sum(PtimesGrad, axis = -1, keepdims=True)
     return P * (gradientOfOutput - sum_PtimesGrad)
+
+
+def test(x):
+    return x * 100
