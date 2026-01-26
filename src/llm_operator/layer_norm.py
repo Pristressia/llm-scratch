@@ -13,7 +13,7 @@ class Layer_norm_cache:
 def layer_norm(
         X: npt.NDArray[np.float64], 
         epsilon: float = 1e-5
-        ) -> tuple[npt.NDArray, Layer_norm_cache]:
+        ) -> tuple[npt.NDArray[np.float64], Layer_norm_cache]:
     
     mean = np.mean(X, axis=-1, keepdims=True)
     XminusMean = X - mean
