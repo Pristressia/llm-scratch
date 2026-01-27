@@ -89,12 +89,12 @@ class Attention:
     def forward_train(self, X: npt.NDArray):
         """if this is the first transformer X must be layer norm before pass into this step"""
 
-        self.xhat, self.layer_norm_cache = layer_norm(X, epsilon=1e-5)
-        self.xnorm = self.xhat * self.gamma + self.beta
+        self.xnorm, self.layer_norm_cache = layer_norm(X, epsilon=1e-5)
+        self.xhat = self.xnorm * self.gamma + self.beta
 
-        self.K = self.xnorm @ self.Wk
-        self.Q = self.xnorm @ self.Wq
-        self.V = self.xnorm @ self.Wv
+        self.K = self.xhat @ self.Wk
+        self.Q = self.xhat @ self.Wq
+        self.V = self.xhat @ self.Wv
 
         self.K_split = self.split_heads(self.K, attentionHead=self.H)
         self.Q_split = self.split_heads(self.Q, attentionHead=self.H)
@@ -132,37 +132,37 @@ class Attention:
         d_Q = self.merge_heads(d_Q_split)
         d_K = self.merge_heads(d_K_split)
 
-        B, T, C = self.xnorm.shape
+        B, T, C = self.xhat.shape
 
-        xnorm_rs = self.xnorm.reshape(B * T, C)
+        xhat_rs = self.xhat.reshape(B * T, C)
         
         d_K_rs = d_K.reshape(B * T, C)
         d_Q_rs = d_Q.reshape(B * T, C)
         d_V_rs = d_V.reshape(B * T, C)
 
-        d_Wk = xnorm_rs.T @ d_K_rs 
-        d_Wq = xnorm_rs.T @ d_Q_rs 
-        d_Wv = xnorm_rs.T @ d_V_rs 
+        d_Wk = xhat_rs.T @ d_K_rs 
+        d_Wq = xhat_rs.T @ d_Q_rs 
+        d_Wv = xhat_rs.T @ d_V_rs 
 
         self.d_Wk_list.append(d_Wk)
         self.d_Wq_list.append(d_Wq)
         self.d_Wv_list.append(d_Wv)
 
-        d_xnorm_k = d_K @ self.Wk.transpose(0, 2, 1) 
-        d_xnorm_q = d_Q @ self.Wq.transpose(0, 2, 1) 
-        d_xnorm_v = d_V @ self.Wv.transpose(0, 2, 1) 
+        d_xhat_k = d_K @ self.Wk.transpose(0, 2, 1) 
+        d_xhat_q = d_Q @ self.Wq.transpose(0, 2, 1) 
+        d_xhat_v = d_V @ self.Wv.transpose(0, 2, 1) 
 
-        d_xnorm = d_xnorm_k + d_xnorm_q + d_xnorm_v
+        d_xhat = d_xhat_k + d_xhat_q + d_xhat_v
 
-        d_gamma = (d_xnorm * self.xhat).sum(axis=(0, 1), keepdims=True)
-        d_beta = d_xnorm.sum(axis=(0, 1), keepdims=True)
+        d_gamma = (d_xhat* self.xnorm).sum(axis=(0, 1), keepdims=True)
+        d_beta = d_xhat.sum(axis=(0, 1), keepdims=True)
 
         self.d_gamma_list.append(d_gamma)
         self.d_beta_list.append(d_beta)
 
-        d_xhat = d_xnorm * self.gamma
+        d_xnorm = d_xhat * self.gamma
 
-        d_x = layer_norm_backward(d_xhat, self.layer_norm_cache)
+        d_x = layer_norm_backward(d_xnorm, self.layer_norm_cache)
 
         return d_x
 
