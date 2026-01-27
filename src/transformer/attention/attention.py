@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 from dataclasses import dataclass 
-from llm_operator import softmax, Softmax_cache, layer_norm, Layer_norm_cache
+from llm_operator import softmax, Softmax_cache, layer_norm, Layer_norm_cache, softmaxBackward, layer_norm_backward
 
 @dataclass
 class Attention_cache:
@@ -11,21 +11,26 @@ class Attention_cache:
 
 @dataclass
 class Attention_init:
-    gamma: npt.NDArray[np.float64]
-    beta: npt.NDArray[np.float64]
+    gamma: npt.NDArray[np.float64] # (1, 1, C) or (C, )
+    beta: npt.NDArray[np.float64]  # (1, 1, C) or (C, )
 
-    attentionHead: int
+    attentionHead: int             # H
 
-    Wk: npt.NDArray[np.float64]
-    Wq: npt.NDArray[np.float64]
-    Wv: npt.NDArray[np.float64]
+    Wk: npt.NDArray[np.float64]    # (C, C) when C is hidden param or d_model
+    Wq: npt.NDArray[np.float64]    # (C, C)
+    Wv: npt.NDArray[np.float64]    # (C, C)
 
-    merge_heads_bias: npt.NDArray[np.float64]
+    merge_heads_bias: npt.NDArray[np.float64] # (1, 1, C) recommend
 class Attention:
 
     K: npt.NDArray[np.float64]
     Q: npt.NDArray[np.float64]
     V: npt.NDArray[np.float64]
+    H: int # number of attention head
+
+    K_split: npt.NDArray[np.float64]
+    Q_split: npt.NDArray[np.float64]
+    V_split: npt.NDArray[np.float64]
 
     xhat: npt.NDArray[np.float64]
     xnorm: npt.NDArray[np.float64]
@@ -35,6 +40,8 @@ class Attention:
     attentions: npt.NDArray[np.float64]
     output: npt.NDArray[np.float64]
     merge_output: npt.NDArray[np.float64]
+
+    softmax_cache: Softmax_cache
 
     def __init__(
             self, 
@@ -63,8 +70,9 @@ class Attention:
             raise Exception(f"[Attention class] : shape of Wv is not allow {initial.Wv.shape}")
         
         #d_model
-        self.C = initial.Wk.shape[0]
-        self.dHead = self.C // initial.attentionHead
+        self.C = initial.Wk.shape[-1]
+        self.H = initial.attentionHead
+        self.dHead = self.C // self.H
 
     @staticmethod
     def merge_heads(X:npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
@@ -88,19 +96,76 @@ class Attention:
         self.Q = self.xnorm @ self.Wq
         self.V = self.xnorm @ self.Wv
 
-        K_split = self.split_heads(self.K, attentionHead=self.dHead)
-        Q_split = self.split_heads(self.Q, attentionHead=self.dHead)
-        V_split = self.split_heads(self.V, attentionHead=self.dHead)
+        self.K_split = self.split_heads(self.K, attentionHead=self.H)
+        self.Q_split = self.split_heads(self.Q, attentionHead=self.H)
+        self.V_split = self.split_heads(self.V, attentionHead=self.H)
 
-        self.scores = Q_split @ K_split.transpose() / np.sqrt(self.dHead)
-        self.attentions, softmax_cache = softmax(self.scores, axis=-1)
-        self.output = self.attentions @ V_split
+        self.scores = self.Q_split @ self.K_split.transpose() / np.sqrt(self.dHead)
+        self.attentions, self.softmax_cache = softmax(self.scores, axis=-1)
+        self.output = self.attentions @ self.V_split
 
         self.merge_output = self.merge_heads(self.output) + self.merge_heads_bias
 
 
-    def backward(self):
-        pass
+    d_merge_heads_bias_list: list[npt.NDArray[np.float64]] = list()
+    d_Wk_list : list[npt.NDArray[np.float64]] = list()
+    d_Wq_list : list[npt.NDArray[np.float64]] = list()
+    d_Wv_list : list[npt.NDArray[np.float64]] = list()
+
+    d_beta_list : list[npt.NDArray[np.float64]] = list()
+    d_gamma_list : list[npt.NDArray[np.float64]] = list()
+
+    def backward(self, gradient_of_output: npt.NDArray[np.float64]):
+        self.d_merge_heads_bias_list.append(gradient_of_output.sum(axis=(0, 1), keepdims=True))
+
+        d_merge_output = gradient_of_output
+        d_output = self.split_heads(d_merge_output, attentionHead=self.H)
+
+        d_V_split = self.attentions.transpose(0, 1, 3, 2) @ d_output
+        d_attentions = d_output @ self.V_split.transpose(0, 1, 3, 2)
+
+        d_scores = softmaxBackward(d_attentions, self.softmax_cache)
+        d_Q_split = d_scores @ self.K_split / np.sqrt(self.dHead)
+        d_K_split = (self.Q_split.transpose(0, 1, 3, 2) @ d_scores).transpose(0, 1, 3, 2) / np.sqrt(self.dHead)
+
+        d_V = self.merge_heads(d_V_split)
+        d_Q = self.merge_heads(d_Q_split)
+        d_K = self.merge_heads(d_K_split)
+
+        B, T, C = self.xnorm.shape
+
+        xnorm_rs = self.xnorm.reshape(B * T, C)
+        
+        d_K_rs = d_K.reshape(B * T, C)
+        d_Q_rs = d_Q.reshape(B * T, C)
+        d_V_rs = d_V.reshape(B * T, C)
+
+        d_Wk = xnorm_rs.T @ d_K_rs 
+        d_Wq = xnorm_rs.T @ d_Q_rs 
+        d_Wv = xnorm_rs.T @ d_V_rs 
+
+        self.d_Wk_list.append(d_Wk)
+        self.d_Wq_list.append(d_Wq)
+        self.d_Wv_list.append(d_Wv)
+
+        d_xnorm_k = d_K @ self.Wk.transpose(0, 2, 1) 
+        d_xnorm_q = d_Q @ self.Wq.transpose(0, 2, 1) 
+        d_xnorm_v = d_V @ self.Wv.transpose(0, 2, 1) 
+
+        d_xnorm = d_xnorm_k + d_xnorm_q + d_xnorm_v
+
+        d_gamma = (d_xnorm * self.xhat).sum(axis=(0, 1), keepdims=True)
+        d_beta = d_xnorm.sum(axis=(0, 1), keepdims=True)
+
+        self.d_gamma_list.append(d_gamma)
+        self.d_beta_list.append(d_beta)
+
+        d_xhat = d_xnorm * self.gamma
+
+        d_x = layer_norm_backward(d_xhat, self.layer_norm_cache)
+
+        return d_x
+
 
 
 
