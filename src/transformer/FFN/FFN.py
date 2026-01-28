@@ -2,7 +2,7 @@ import numpy as np
 import numpy.typing as npt
 from typing import Callable, Any
 from dataclasses import dataclass
-from llm_operator import layer_norm, layer_norm_backward, Layer_norm_cache, Relu, Relu_backward, Relu_cache
+from llm_operator import layer_norm, layer_norm_backward, Layer_norm_cache, Relu, Relu_backward
 
 
 ActForward = Callable[[npt.NDArray[np.float64]], tuple[npt.NDArray[np.float64], Any]]
