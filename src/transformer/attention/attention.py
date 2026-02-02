@@ -51,33 +51,33 @@ class Attention:
         
         self.Name = name
 
-        self.Wk = initial.Wk
-        self.Wq = initial.Wq
-        self.Wv = initial.Wv
+        self.Wk = initial.Wk.reshape(1, initial.Wk.shape[-2], initial.Wk.shape[-1])
+        self.Wq = initial.Wq.reshape(1, initial.Wq.shape[-2], initial.Wq.shape[-1])
+        self.Wv = initial.Wv.reshape(1, initial.Wv.shape[-2], initial.Wv.shape[-1])
 
-        self.merge_heads_bias = initial.merge_heads_bias
+        self.merge_heads_bias = initial.merge_heads_bias.reshape(1, 1, -1)
 
-        self.gamma = initial.gamma
-        self.beta = initial.beta
+        self.gamma = initial.gamma.reshape(1, 1, -1)
+        self.beta = initial.beta.reshape(1, 1, -1)
 
-        if (len(initial.Wk.shape) != 2 or initial.Wk.shape[0] != initial.Wk.shape[1]):
+        if ( initial.Wk.shape[-2] != initial.Wk.shape[-1]):
             raise Exception(f"[Attention class] : shape of Wk is not allow {initial.Wk.shape}")
         
-        if (len(initial.Wq.shape) != 2 or initial.Wq.shape[0] != initial.Wq.shape[1]):
+        if ( initial.Wq.shape[-2] != initial.Wq.shape[-1]):
             raise Exception(f"[Attention class] : shape of Wq is not allow {initial.Wq.shape}")
         
-        if (len(initial.Wv.shape) != 2 or initial.Wv.shape[0] != initial.Wv.shape[1]): 
+        if ( initial.Wv.shape[-2] != initial.Wv.shape[-1]): 
             raise Exception(f"[Attention class] : shape of Wv is not allow {initial.Wv.shape}")
         
         #d_model
-        self.C = initial.Wk.shape[-1]
+        self.C = self.Wk.shape[-1]
         self.H = initial.attentionHead
         self.dHead = self.C // self.H
 
     @staticmethod
     def merge_heads(X:npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         B, H, T, dHead = X.shape
-        return X.transpose(0, 2, 1, 3).reshape(B, T, H, dHead)
+        return X.transpose(0, 2, 1, 3).reshape(B, T, H * dHead)
     
     @staticmethod
     def split_heads(X:npt.NDArray[np.float64], attentionHead: int = 1) -> npt.NDArray[np.float64]:
@@ -100,7 +100,7 @@ class Attention:
         self.Q_split = self.split_heads(self.Q, attentionHead=self.H)
         self.V_split = self.split_heads(self.V, attentionHead=self.H)
 
-        self.scores = self.Q_split @ self.K_split.transpose() / np.sqrt(self.dHead)
+        self.scores = self.Q_split @ self.K_split.transpose(0, 1, 3, 2) / np.sqrt(self.dHead)
         self.attentions, self.softmax_cache = softmax(self.scores, axis=-1)
         self.output = self.attentions @ self.V_split
 
