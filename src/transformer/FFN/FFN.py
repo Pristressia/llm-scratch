@@ -3,7 +3,7 @@ import numpy.typing as npt
 from typing import Callable, Any
 from dataclasses import dataclass
 from llm_operator import layer_norm, layer_norm_backward, Layer_norm_cache, Relu, Relu_backward
-
+from transformer import TransformerCore
 
 ActForward = Callable[[npt.NDArray[np.float64]], tuple[npt.NDArray[np.float64], Any]]
 ActBackward = Callable[[npt.NDArray[np.float64], Any], npt.NDArray[np.float64]]
@@ -20,10 +20,9 @@ class FFN_init:
     B_shrink: npt.NDArray[np.float64] # (1, 1 * d_model) or (d_model, )
 
     activate_function: ActForward
-    activate_cache: Any
     activate_function_backward: ActBackward
     
-class FFN:
+class FFN(TransformerCore):
 
     xnorm : npt.NDArray[np.float64]
 
@@ -66,14 +65,14 @@ class FFN:
     d_beta_list : list[npt.NDArray[np.float64]] = list()
     d_gamma_list : list[npt.NDArray[np.float64]] = list()
 
-    def backward(self, gradient_of_output):
-        d_B_shrink = gradient_of_output.sum(axis=(0, 1), keepdims=True)
-        d_W_shrink = self.act.transpose(0, 2, 1) @ gradient_of_output
+    def backward(self, gradientOfOutput):
+        d_B_shrink = gradientOfOutput.sum(axis=(0, 1), keepdims=True)
+        d_W_shrink = self.act.transpose(0, 2, 1) @ gradientOfOutput
 
         self.d_B_shrink_list.append(d_B_shrink)
         self.d_W_shrink_list.append(d_W_shrink)
 
-        d_act = gradient_of_output @ self.W_shrink[None, :, :].transpose(0, 2, 1)
+        d_act = gradientOfOutput @ self.W_shrink.transpose(0, 2, 1)
 
         d_pre = self.activate_backward(d_act, self.activate_cache)
 
