@@ -1,4 +1,4 @@
-from .Attention import Attention, Attention_cache, Attention_init
-from .FFN import FFN, FFN_init
-from .DataPipe import DataPipe
-from .TransformerCore import TransformerCore
+from .attention import Attention, Attention_cache, Attention_init
+from .feedForwardNeural import FFN, FFN_init
+from .dataPipe import DataPipe
+from .transformerCore import TransformerCore

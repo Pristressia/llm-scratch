@@ -3,7 +3,7 @@ import numpy.typing as npt
 from typing import Callable, Any
 from dataclasses import dataclass
 from llm_operator import layer_norm, layer_norm_backward, Layer_norm_cache, Relu, Relu_backward
-from transformer import TransformerCore
+from transformer.transformerCore.TransformerCore import TransformerCore
 
 ActForward = Callable[[npt.NDArray[np.float64]], tuple[npt.NDArray[np.float64], Any]]
 ActBackward = Callable[[npt.NDArray[np.float64], Any], npt.NDArray[np.float64]]
