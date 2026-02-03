@@ -105,6 +105,8 @@ class Attention:
         self.output = self.attentions @ self.V_split
 
         self.merge_output = self.merge_heads(self.output) + self.merge_heads_bias
+        
+        return self.merge_output
 
 
     d_merge_heads_bias_list: list[npt.NDArray[np.float64]] = list()
