@@ -97,6 +97,14 @@ class Attention(TransformerCore):
         self.H = initial.attentionHead
         self.dHead = self.C // self.H
 
+        self.d_merge_heads_bias_list: list[npt.NDArray[np.float64]] = list()
+        self.d_Wk_list : list[npt.NDArray[np.float64]] = list()
+        self.d_Wq_list : list[npt.NDArray[np.float64]] = list()
+        self.d_Wv_list : list[npt.NDArray[np.float64]] = list()
+
+        self.d_beta_list : list[npt.NDArray[np.float64]] = list()
+        self.d_gamma_list : list[npt.NDArray[np.float64]] = list()
+
     @staticmethod
     def merge_heads(X:npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         B, H, T, dHead = X.shape
@@ -131,15 +139,6 @@ class Attention(TransformerCore):
         
         return self.merge_output
 
-
-    d_merge_heads_bias_list: list[npt.NDArray[np.float64]] = list()
-    d_Wk_list : list[npt.NDArray[np.float64]] = list()
-    d_Wq_list : list[npt.NDArray[np.float64]] = list()
-    d_Wv_list : list[npt.NDArray[np.float64]] = list()
-
-    d_beta_list : list[npt.NDArray[np.float64]] = list()
-    d_gamma_list : list[npt.NDArray[np.float64]] = list()
-
     def backward(self, gradientOfOutput: npt.NDArray[np.float64]):
         self.d_merge_heads_bias_list.append(gradientOfOutput.sum(axis=(0, 1), keepdims=True))
 
@@ -151,7 +150,8 @@ class Attention(TransformerCore):
 
         d_scores = softmaxBackward(d_attentions, self.softmax_cache)
         d_Q_split = d_scores @ self.K_split / np.sqrt(self.dHead)
-        d_K_split = (self.Q_split.transpose(0, 1, 3, 2) @ d_scores).transpose(0, 1, 3, 2) / np.sqrt(self.dHead)
+        # d_K_split = (self.Q_split.transpose(0, 1, 3, 2) @ d_scores).transpose(0, 1, 3, 2) / np.sqrt(self.dHead)
+        d_K_split = (d_scores.transpose(0, 1, 3, 2) @ self.Q_split) / np.sqrt(self.dHead) # chatgpt suggest this instead
 
         d_V = self.merge_heads(d_V_split)
         d_Q = self.merge_heads(d_Q_split)

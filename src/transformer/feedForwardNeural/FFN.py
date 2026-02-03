@@ -39,6 +39,15 @@ class FFN(TransformerCore):
         self.activate = init.activate_function
         self.activate_backward = init.activate_function_backward
 
+        self.d_B_shrink_list : list[npt.NDArray[np.float64]] = list()
+        self.d_W_shrink_list : list[npt.NDArray[np.float64]] = list()
+
+        self.d_B_expand_list : list[npt.NDArray[np.float64]] = list()
+        self.d_W_expand_list : list[npt.NDArray[np.float64]] = list()
+        
+        self.d_beta_list : list[npt.NDArray[np.float64]] = list()
+        self.d_gamma_list : list[npt.NDArray[np.float64]] = list()
+
     def forward_train(self, X):
         # LN
         self.xnorm, self.layer_norm_cache = layer_norm(X) 
@@ -56,15 +65,6 @@ class FFN(TransformerCore):
         self.output = self.act @ self.W_shrink + self.B_shrink  # (B, T, d_model)
         return self.output
     
-    d_B_shrink_list : list[npt.NDArray[np.float64]] = list()
-    d_W_shrink_list : list[npt.NDArray[np.float64]] = list()
-
-    d_B_expand_list : list[npt.NDArray[np.float64]] = list()
-    d_W_expand_list : list[npt.NDArray[np.float64]] = list()
-
-    d_beta_list : list[npt.NDArray[np.float64]] = list()
-    d_gamma_list : list[npt.NDArray[np.float64]] = list()
-
     def backward(self, gradientOfOutput):
         d_B_shrink = gradientOfOutput.sum(axis=(0, 1), keepdims=True)
         d_W_shrink = self.act.transpose(0, 2, 1) @ gradientOfOutput
