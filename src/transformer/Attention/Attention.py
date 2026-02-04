@@ -251,6 +251,10 @@ class Attention(TransformerCore):
         d_x = layer_norm_backward(d_xnorm, self.layer_norm_cache)
 
         return d_x
+    
+    def save_checkpoint(self):
+        pass
+
 
 
 
