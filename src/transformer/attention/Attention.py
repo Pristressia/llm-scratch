@@ -66,6 +66,14 @@ class Attention(TransformerCore):
 
     softmax_cache: Softmax_cache
 
+    d_merge_heads_bias_list: list[npt.NDArray[np.float64]] = list()
+    d_Wk_list : list[npt.NDArray[np.float64]] = list()
+    d_Wq_list : list[npt.NDArray[np.float64]] = list()
+    d_Wv_list : list[npt.NDArray[np.float64]] = list()
+
+    d_beta_list : list[npt.NDArray[np.float64]] = list()
+    d_gamma_list : list[npt.NDArray[np.float64]] = list()
+
     def __init__(
             self, 
             initial: Attention_init,
@@ -116,8 +124,49 @@ class Attention(TransformerCore):
         dHead = C // attentionHead
         X = X.reshape(B, T, attentionHead, dHead)
         return X.transpose(0, 2, 1, 3)
+    
+    @staticmethod
+    def merge_heads_infer(X: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        H, T, dHead = X.shape
+        return X.transpose(1, 0, 2).reshape(T, H * dHead)
 
-    def forward_train(self, X: npt.NDArray):
+
+    @staticmethod
+    def split_heads_infer(X: npt.NDArray[np.float64], attentionHead: int = 1) -> npt.NDArray[np.float64]:
+        T, C = X.shape
+        dHead = C // attentionHead
+        X = X.reshape(T, attentionHead, dHead)
+        return X.transpose(1, 0, 2)
+
+    def commit_model(self) :
+        self.gamma_infer = self.gamma.reshape(1, self.C)
+        self.beta_infer = self.beta.reshape(1,  self.C)
+
+        self.Wk_infer = self.Wk.reshape(self.Wk.shape[-2], self.Wk.shape[-1])
+        self.Wq_infer = self.Wq.reshape(self.Wq.shape[-2], self.Wq.shape[-1])
+        self.Wv_infer = self.Wv.reshape(self.Wv.shape[-2], self.Wv.shape[-1])
+
+        self.merge_heads_bias_infer = self.merge_heads_bias_infer(1, self.C)
+
+
+    def forward_infer(self, X: npt.NDArray[np.float64]):
+        xnorm, _ = layer_norm(X, epsilon=1e-5)
+        xhat = xnorm * self.gamma + self.beta
+
+        K = self.split_heads_infer(xhat @ self.Wk_infer)
+        Q = self.split_heads_infer(xhat @ self.Wq_infer)
+        V = self.split_heads_infer(xhat @ self.Wv_infer)
+
+        scores = (Q @ K.transpose(0, 2, 1)) / np.sqrt(self.dHead)
+        attentions, _ = softmax(scores, axis=-1)
+
+        outputs = attentions @ V
+        merge_output = self.merge_heads_infer(outputs) + self.merge_heads_bias_infer
+
+        return merge_output
+    
+
+    def forward_train(self, X: npt.NDArray[np.float64]):
         """if this is the first transformer X must be layer norm before pass into this step"""
 
         self.xnorm, self.layer_norm_cache = layer_norm(X, epsilon=1e-5)
@@ -133,13 +182,25 @@ class Attention(TransformerCore):
 
         self.scores = self.Q_split @ self.K_split.transpose(0, 1, 3, 2) / np.sqrt(self.dHead)
         self.attentions, self.softmax_cache = softmax(self.scores, axis=-1)
+
+        # print("attentions shape: ", self.attentions.shape)
+
         self.output = self.attentions @ self.V_split
 
         self.merge_output = self.merge_heads(self.output) + self.merge_heads_bias
         
         return self.merge_output
+    
+    def forward(self, X: npt.NDArray[np.float64], is_train = True):
+        if is_train:
+            return self.forward_train(X)
+        return self.forward_infer(X)
 
     def backward(self, gradientOfOutput: npt.NDArray[np.float64]):
+
+        if(self.attentions.any() == None) :
+            raise Exception("Please call forward_train() method before call this method")
+
         self.d_merge_heads_bias_list.append(gradientOfOutput.sum(axis=(0, 1), keepdims=True))
 
         d_merge_output = gradientOfOutput

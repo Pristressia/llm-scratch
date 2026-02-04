@@ -8,8 +8,7 @@ class TransformerCore:
     def __init__(self, name: str = "core1"):
         self.name = name
 
-
-    def forward(self, X: npt.NDArray[np.float64]) :
+    def forward(self, X: npt.NDArray[np.float64], is_train: bool = True) :
         return X
     
     def backward(self, gradientOfOutput: npt.NDArray[np.float64]):
@@ -17,3 +16,9 @@ class TransformerCore:
     
     def forward_train(self, X: npt.NDArray[np.float64]):
         return X
+    
+    def save_checkpoint(self):
+        pass
+
+    def load_checkpoint(self):
+        pass

@@ -65,6 +65,40 @@ class FFN(TransformerCore):
         self.output = self.act @ self.W_shrink + self.B_shrink  # (B, T, d_model)
         return self.output
     
+    def commit_model(self):
+        self.gamma_infer = self.gamma.reshape(1, self.gamma.shape[-1])
+        self.beta_infer = self.beta.reshape(1, self.beta.shape[-1])
+
+        C = self.W_expand.shape[-2]
+        E = self.W_expand.shape[-1]
+
+        self.W_expand_infer = self.W_expand.reshape(C, E)
+        self.B_expand_infer = self.B_expand.reshape(1, E)
+
+        self.W_shrink_infer = self.W_shrink.reshape(E, C)
+        self.B_shrink_infer = self.B_shrink.reshape(1, C)
+    
+    def forward_infer(self, X):
+        xnorm, _ = layer_norm(X)
+        xhat = (xnorm * self.gamma_infer) + self.beta_infer
+
+        pre = xhat @ self.W_expand_infer + self.B_expand_infer
+        act, _ = self.activate(pre)
+
+        output = act @ self.W_shrink_infer + self.B_shrink_infer
+        return output
+    
+    def forward(
+            self, 
+            X: npt.NDArray[np.float64], 
+            is_train: bool = True
+            ):
+            
+            
+        if (is_train): 
+            return self.forward_train(X)
+        return self.forward_infer(X)
+
     def backward(self, gradientOfOutput):
         d_B_shrink = gradientOfOutput.sum(axis=(0, 1), keepdims=True)
         d_W_shrink = self.act.transpose(0, 2, 1) @ gradientOfOutput

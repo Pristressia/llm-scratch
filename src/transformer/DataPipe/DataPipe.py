@@ -13,8 +13,8 @@ class DataPipe:
         self.branchObject = branchObject
         pass
 
-    def forward(self, X: npt.NDArray[np.float64]) :
-        self.outputFromForward = self.branchObject.forward(X)
+    def forward(self, X: npt.NDArray[np.float64], is_train: bool = True) :
+        self.outputFromForward = self.branchObject.forward(X, is_train = is_train)
         self.outputFromPipe = X + self.outputFromForward
         return self.outputFromPipe
 
