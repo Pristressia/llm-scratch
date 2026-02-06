@@ -227,6 +227,7 @@ class Attention(TransformerCore):
     def saveToCheckpoint(self):
 
         fileName = self.name + ".npz"
+        # filePath = 
         np.savez(file = fileName, 
                  Wk = self.Wk,
                  Wq = self.Wq,
@@ -242,6 +243,7 @@ class Attention(TransformerCore):
 
     @staticmethod
     def loadFromCheckpoint(name: str):
+        pass
 
 
 
