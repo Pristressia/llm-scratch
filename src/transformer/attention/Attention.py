@@ -123,12 +123,12 @@ class Attention(TransformerCore):
         self.Wq_infer = self.Wq.reshape(self.Wq.shape[-2], self.Wq.shape[-1])
         self.Wv_infer = self.Wv.reshape(self.Wv.shape[-2], self.Wv.shape[-1])
 
-        self.merge_heads_bias_infer = self.merge_heads_bias_infer(1, self.C)
+        self.merge_heads_bias_infer = self.merge_heads_bias.reshape(1, self.C)
 
 
     def forward_infer(self, X: npt.NDArray[np.float64]):
         xnorm, _ = layer_norm(X, epsilon=1e-5)
-        xhat = xnorm * self.gamma + self.beta
+        xhat = xnorm * self.gamma_infer + self.beta_infer
 
         K = self.split_heads_infer(xhat @ self.Wk_infer)
         Q = self.split_heads_infer(xhat @ self.Wq_infer)
