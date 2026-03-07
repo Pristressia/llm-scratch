@@ -229,14 +229,14 @@ class Attention(TransformerCore):
 
         return d_x
     
-    def saveToCheckpoint(self):
+    def save_checkpoint(self):
 
-        fileName = self.name + ".npz"
+        fileName = self.Name + ".npz"
         rootPath = getRootPath();
 
-        os.path.join(rootPath, CHECKPOINT_DIR, fileName)
+        fullPath = os.path.join(rootPath, CHECKPOINT_DIR, fileName)
 
-        np.savez(file = fileName, 
+        np.savez(file = fullPath, 
                  Wk = self.Wk,
                  Wq = self.Wq,
                  Wv = self.Wv,
@@ -245,7 +245,7 @@ class Attention(TransformerCore):
                  attention_head = [self.H],
                  merge_heads_bias = self.merge_heads_bias
                  )
-        print(f"Attention : {self.name}, already save at the checkpoint")
+        print(f"Attention : {self.Name}, already save at the checkpoint @ {fullPath}")
 
         pass
 
@@ -259,13 +259,13 @@ class Attention(TransformerCore):
                  attention_head = [self.H],
                  merge_heads_bias = self.merge_heads_bias
                  )
-        print(f"Attention : {self.name}, already save at the checkpoint")
+        print(f"Attention : {self.Name}, already save at the checkpoint")
 
         pass
 
     
     @staticmethod
-    def loadFromCheckpoint(name: str):
+    def load_checkpoint(name: str):
 
         rootPath = getRootPath();
         filePath = os.path.join(rootPath, CHECKPOINT_DIR, name + ".npz")  

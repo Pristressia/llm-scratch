@@ -23,5 +23,5 @@ class DataPipe:
         self.gradientOfInputPipe = gradientOfOutput + self.gradientOfX_sideway
         return self.gradientOfInputPipe
     
-    
+
 

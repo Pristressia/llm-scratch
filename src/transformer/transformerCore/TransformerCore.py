@@ -5,7 +5,7 @@ class TransformerCore:
 
     name : str = "core1"
 
-    def __init__(self, name: str = "core1"):
+    def __init__(self, name: str):
         self.name = name
 
     def forward(self, X: npt.NDArray[np.float64], is_train: bool = True) :
@@ -20,5 +20,3 @@ class TransformerCore:
     def save_checkpoint(self):
         pass
 
-    def load_checkpoint(self):
-        pass
