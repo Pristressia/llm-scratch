@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import numpy.typing as npt
 from dataclasses import dataclass 
@@ -6,7 +8,8 @@ from llm_operator import softmax, Softmax_cache, layer_norm, Layer_norm_cache, s
 from transformer.transformerCore.TransformerCore import TransformerCore
 
 from .Attention_init import Attention_init
-from config import CHECKPOINT_PATH
+from helper import getRootPath
+from config import CHECKPOINT_DIR
 
 
 @dataclass
@@ -17,6 +20,8 @@ class Attention_cache:
 
 
 class Attention(TransformerCore):
+
+    iteration: int
 
     K: npt.NDArray[np.float64]
     Q: npt.NDArray[np.float64]
@@ -227,7 +232,10 @@ class Attention(TransformerCore):
     def saveToCheckpoint(self):
 
         fileName = self.name + ".npz"
-        # filePath = 
+        rootPath = getRootPath();
+
+        os.path.join(rootPath, CHECKPOINT_DIR, fileName)
+
         np.savez(file = fileName, 
                  Wk = self.Wk,
                  Wq = self.Wq,
@@ -241,9 +249,39 @@ class Attention(TransformerCore):
 
         pass
 
+    def saveToSpecitifyPath(self, filePath):
+        np.savez(file = filePath, 
+                 Wk = self.Wk,
+                 Wq = self.Wq,
+                 Wv = self.Wv,
+                 gamma = self.gamma,
+                 beta = self.beta,
+                 attention_head = [self.H],
+                 merge_heads_bias = self.merge_heads_bias
+                 )
+        print(f"Attention : {self.name}, already save at the checkpoint")
+
+        pass
+
+    
     @staticmethod
     def loadFromCheckpoint(name: str):
-        pass
+
+        rootPath = getRootPath();
+        filePath = os.path.join(rootPath, CHECKPOINT_DIR, name + ".npz")  
+        data = np.load(file = filePath);
+
+        attentionInit = Attention_init(
+            gamma = data["gamma"], 
+            beta = data["beta"], 
+            attentionHead = data["attention_head"], 
+            merge_heads_bias= data["merge_heads_bias"][0], 
+            Wk=data["Wk"], 
+            Wq=data["Wq"], 
+            Wv=data["Wv"]
+            )
+        
+        return Attention(initial=attentionInit, name=name)
 
 
 
