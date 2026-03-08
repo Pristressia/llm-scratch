@@ -11,7 +11,7 @@ from helper import getRootPath
 
 ActForward = Callable[[npt.NDArray[np.float64]], tuple[npt.NDArray[np.float64], Any]]
 ActBackward = Callable[[npt.NDArray[np.float64], Any], npt.NDArray[np.float64]]
-@dataclass
+0
 class FFN_init:
 
     gamma: npt.NDArray[np.float64]    # (1, 1, d_model) or (d_model, )
@@ -25,6 +25,52 @@ class FFN_init:
 
     activate_function: ActForward
     activate_function_backward: ActBackward
+
+    def __init__ (
+            self, 
+            gamma: npt.NDArray[np.float64], 
+            beta: npt.NDArray[np.float64], 
+            W_expand: npt.NDArray[np.float64], 
+            B_expand: npt.NDArray[np.float64], 
+            W_shrink: npt.NDArray[np.float64], 
+            B_shrink: npt.NDArray[np.float64], 
+            activate_function, 
+            activate_function_backward
+            ) :
+        self.gamma = gamma
+        self.beta = beta
+        self.W_expand = W_expand
+        self.B_expand = B_expand
+        self.W_shrink = W_shrink
+        self.B_shrink = B_shrink
+
+        self.activate_function = activate_function
+        self.activate_function_backward = activate_function_backward
+        pass
+
+    @staticmethod
+    def randomInitial(
+        d_model: int, 
+        expand_scale: int, 
+        seed: int=2000, 
+        activate_function = Relu, 
+        activate_function_backword = Relu_backward
+        ) :
+        rng = np.random.default_rng(seed)
+        return FFN_init(
+            gamma = rng.random((1, 1, d_model), dtype = np.float64),
+            beta = rng.random((1, 1, d_model), dtype = np.float64),
+
+            W_expand = rng.random((1, d_model, d_model * expand_scale), dtype = np.float64),
+            B_expand = rng.random((1, 1, d_model * expand_scale), dtype = np.float64),
+            
+            W_shrink = rng.random((1, d_model * expand_scale, d_model), dtype = np.float64),
+            B_shrink = rng.random((1, d_model, 1), dtype = np.float64),
+
+            activate_function = activate_function,
+            activate_function_backward = activate_function_backword
+        )
+    
     
 class FFN(TransformerCore):
 
