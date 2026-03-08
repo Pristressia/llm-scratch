@@ -4,6 +4,10 @@ from typing import Callable, Any
 from dataclasses import dataclass
 from llm_operator import layer_norm, layer_norm_backward, Layer_norm_cache, Relu, Relu_backward
 from transformer.transformerCore.TransformerCore import TransformerCore
+import os
+from config import CHECKPOINT_DIR
+
+from helper import getRootPath
 
 ActForward = Callable[[npt.NDArray[np.float64]], tuple[npt.NDArray[np.float64], Any]]
 ActBackward = Callable[[npt.NDArray[np.float64], Any], npt.NDArray[np.float64]]
@@ -26,7 +30,7 @@ class FFN(TransformerCore):
 
     xnorm : npt.NDArray[np.float64]
 
-    def __init__(self, init: FFN_init):
+    def __init__(self, init: FFN_init, name: str ="FFN1"):
         self.gamma = init.gamma.reshape(1, 1, -1)
         self.beta = init.beta.reshape(1, 1, -1)
 
@@ -47,6 +51,8 @@ class FFN(TransformerCore):
         
         self.d_beta_list : list[npt.NDArray[np.float64]] = list()
         self.d_gamma_list : list[npt.NDArray[np.float64]] = list()
+
+        self.Name = name
 
     def forward_train(self, X):
         # LN
@@ -128,3 +134,46 @@ class FFN(TransformerCore):
 
         dx = layer_norm_backward(d_xnorm, self.layer_norm_cache)
         return dx
+    
+
+    def save_checkpoint(self):
+        rootPath = getRootPath();
+        filePath = os.path.join(rootPath, CHECKPOINT_DIR, self.Name + ".ffn.npz")  
+        
+        np.savez(
+            file = filePath,
+
+            gamma = self.gamma,
+            beta = self.beta,
+
+            W_expand = self.W_expand,
+            B_expand = self.B_expand,
+            
+            W_shrink = self.W_shrink,
+            B_shrink = self.B_shrink
+        )
+
+        print(f"FFN {self.Name} has been save successfully @ {filePath}")
+
+
+    @staticmethod
+    def load_checkpoint(name: str, activation_function, activation_function_backward) :
+        rootPath = getRootPath();
+        filePath = os.path.join(rootPath, CHECKPOINT_DIR, name + ".ffn.npz")  
+        data = np.load(file = filePath);
+
+        ffn_init = FFN_init(
+            gamma = data["gamma"], 
+            beta = data["beta"], 
+            activate_function=activation_function, 
+            activate_function_backward = activation_function_backward,
+            W_expand=data["W_expand"],
+            B_expand=data["B_expand"],
+            W_shrink=data["W_shrink"],
+            B_shrink=data["B_shrink"]
+        )
+
+        return FFN(ffn_init, name=name)
+
+
+        

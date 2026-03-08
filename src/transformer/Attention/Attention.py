@@ -51,6 +51,8 @@ class Attention(TransformerCore):
     d_beta_list : list[npt.NDArray[np.float64]] = list()
     d_gamma_list : list[npt.NDArray[np.float64]] = list()
 
+    causal_mask : npt.NDArray[np.float64]
+
     def __init__(
             self, 
             initial: Attention_init,
@@ -142,6 +144,10 @@ class Attention(TransformerCore):
 
         return merge_output
     
+    def create_causal_mask(self, T, neg_large = -1e9) :
+        m = np.triu(np.ones((T, T), dtype=np.float64), k = 1)
+        return m * neg_large
+    
 
     def forward_train(self, X: npt.NDArray[np.float64]):
         """if this is the first transformer X must be layer norm before pass into this step"""
@@ -158,6 +164,11 @@ class Attention(TransformerCore):
         self.V_split = self.split_heads(self.V, attentionHead=self.H)
 
         self.scores = self.Q_split @ self.K_split.transpose(0, 1, 3, 2) / np.sqrt(self.dHead)
+
+        # appliy causal mask
+        self.causal_mask = self.create_causal_mask(self.scores.shape[-1])[None, None, :, :]
+        self.scores += self.causal_mask;
+
         self.attentions, self.softmax_cache = softmax(self.scores, axis=-1)
 
         # print("attentions shape: ", self.attentions.shape)
@@ -231,7 +242,7 @@ class Attention(TransformerCore):
     
     def save_checkpoint(self):
 
-        fileName = self.Name + ".npz"
+        fileName = self.Name + ".transformer.npz"
         rootPath = getRootPath();
 
         fullPath = os.path.join(rootPath, CHECKPOINT_DIR, fileName)
@@ -268,7 +279,7 @@ class Attention(TransformerCore):
     def load_checkpoint(name: str):
 
         rootPath = getRootPath();
-        filePath = os.path.join(rootPath, CHECKPOINT_DIR, name + ".npz")  
+        filePath = os.path.join(rootPath, CHECKPOINT_DIR, name + ".transformer.npz")  
         data = np.load(file = filePath);
 
         attentionInit = Attention_init(
@@ -282,6 +293,38 @@ class Attention(TransformerCore):
             )
         
         return Attention(initial=attentionInit, name=name)
+
+    def learnAtConstantRate(self, learningRate: float = 0.1) :
+        dMergeHeadStack = np.array(self.d_merge_heads_bias_list)
+        dWkStack = np.array(self.d_Wk_list)
+        dWqStack = np.array(self.d_Wq_list)
+        dWvStack = np.array(self.d_Wv_list)
+        dBetaStack = np.array(self.d_beta_list)
+        dGammaStack = np.array(self.d_gamma_list)
+
+        d_merge_head_bias = dMergeHeadStack.mean(axis=0)
+        d_Wk = dWkStack.mean(axis=0)
+        d_Wq = dWqStack.mean(axis=0)
+        d_Wv = dWvStack.mean(axis=0)
+        d_beta = dBetaStack.mean(axis=0)
+        d_gamma = dGammaStack.mean(axis=0)
+
+        self.merge_heads_bias += -learningRate * d_merge_head_bias
+        self.Wk += -learningRate * d_Wk
+        self.Wq += -learningRate * d_Wq
+        self.Wv += -learningRate * d_Wv
+        self.beta += -learningRate * d_beta
+        self.gamma += -learningRate * d_gamma
+
+        self.d_merge_heads_bias_list = []
+        self.d_Wk_list = []
+        self.d_Wq_list = []
+        self.d_Wv_list = []
+        self.d_beta_list = []
+        self.d_gamma_list = []
+
+
+    
 
 
 

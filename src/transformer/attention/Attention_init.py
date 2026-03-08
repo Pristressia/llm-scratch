@@ -18,8 +18,6 @@ class Attention_init:
     @staticmethod
     def randomInitial(
         seeds: int = 1000, 
-        B: int = 2, 
-        T: int = 4, 
         d_model = 6
         ):
         
